@@ -46,9 +46,10 @@ This is often a good approximation of reality. For example, when the energy capa
 Since the change of the water temperature depends on the water temperature itself, a differential equation is needed to describe the plant. The following equation can be used to describe the water temperature.  
 Based on the first law of thermodynamics, one can state that the change of the energy stored inside the water, must be equal to the incoming electric power and the power loss due to imperfect isolation.  
 The equation is derived by setting the sum of all powers to zero:
-$$
+
+```math
 C \frac{dT_\text{water}(t)}{dt} = \eta I_{\text{electric}(t)} - hA \left( T_\text{water}(t) - T_{ambient} \right)
-$$
+```
 
 Where:
 - $T_\text{water}(t)$: water temperature, called process variable (in $°C$)
@@ -56,10 +57,10 @@ Where:
 - $C \frac{dT_\text{water}(t)}{dt}$: time rate of change of the energy stored inside the system (in $Joule\ per\ second$ or $Watt$)
     - $C$: the thermal capacity of the water in the tank (in $Joule\ per\ Kelvin$)
     - $\frac{dT_\text{water}(t)}{dt}$: time rate of change of the water temperature (in $Kelvin$)
-- $ \eta I_{\text{electric}(t)}$: electric power heating up the water (in $Volt ⋅ Ampere$ or $Watt$)
+- $\eta I_{\text{electric}(t)}$: electric power heating up the water (in $Volt ⋅ Ampere$ or $Watt$)
     - $\eta$: constant containing the voltage of the source and an efficiency factor (in $Volt$)
 - $hA \left( T_\text{water}(t) - T_{ambient} \right)$ heatflow caused by imperfect isolation (in $Watt$)
-    - $h$: the heat transfer coefficient (in $Watt / (m^2⋅Kelvin)$)
+    - $h$: the heat transfer coefficient (in $`Watt / (m^2 ⋅ Kelvin)`$ )
     - $A$: surface area of the water tank (in $m^2$)
     - $T_{ambient}$: temperature of the environment (in $°C$)
     - $T_\text{water}(t) - T_{ambient}$: the temperature gradient that causes the heat flow (in $Kelvin$)
@@ -91,16 +92,16 @@ While the PT1 system itself is linear, the addition of a delay makes the overall
 
 The __error__ is the difference between the setpoint and the process variable.  
 
-$$
+```math
 error(t) = setpoint - process\_variable(t)
-$$
+```
 
 The __loss function__ describes the goal of an optimization problem. Here, the goal of the controller is to minimize the absolute value of the error.
 The loss function is defined as the mean absolute error over time. This loss is used to compare the quality of the different control strategies:
 
-$$
+```math
 mean\_absolute\_error = \frac{1}{n} \sum_{i=1}^{n} |error(t_i)|
-$$
+```
 
 ### System for comparison
 
@@ -245,12 +246,12 @@ plt.show()
 
 ### PID-Controller
 
-The [PID controller](https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller) is used for a wide range of applications. The controller's input is the difference between the process variable and the setpoint, known as error ($e(t)$). The output of the controller is the input signal of the plant ($u(t)$).
+The [PID controller](https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller) is used for a wide range of applications. The controller's input is the difference between the process variable and the setpoint, known as error ($`e(t)`$). The output of the controller is the input signal of the plant ($`u(t)`$).
 The following formula describes the PID-Controller, with three constants ($K_p$, $K_i$ and $K_d$):  
 
-$$
+```math
 u(t) = K_p e(t) + K_i \int_{0}^{t} e(\tau) d\tau + K_d \frac{d}{dt} e(t)
-$$
+```
 
 ### Windup Compensation
 
@@ -346,9 +347,9 @@ The beauty of the Q-Learning algorithm lies in the fact that it can solve proble
 
 The Q-Learning algorithm updates the Q-value for a state-action pair $(s, a)$ using the following formula:
 
-$$
+```math
 Q(s_t, a_t)_\text{target} \leftarrow (1-\alpha) Q(s_t, a_t) + \alpha \left[ r_\text{t+1} + \gamma \max_{a_\text{t + 1}} Q(s_\text{t+1}, a_\text{t+1})\right]
-$$
+```
 
 Where:
 - $Q(s_t, a_t)$ is the current Q-value for the state $(s_t)$ and action $(a_t)$.
@@ -377,9 +378,10 @@ Since the problem here is relatively simple, a fully connected network with 3 La
 The input is a tensor containing a time series of past process variables, input signals as well as the current setpoint.  
 
 The reward is defined as the negative absolute error:
-$$
+
+```math
 reward(t) = - | error(t) |
-$$
+```
 
 #### Results
 
