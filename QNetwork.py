@@ -50,9 +50,9 @@ class QLearningAgent:
         self.scheduler = SequentialLR(self.optimizer, schedulers=[self.warmup_scheduler, self.exponential_scheduler], milestones=[warmup_steps])
 
         # Replay memory
-        self.memory = deque(maxlen=40000)
-        self.past_states = deque([0.0]*n, maxlen=n)
-        self.past_actions = deque([0.0]*n, maxlen=n)
+        self.memory = deque(maxlen=8000)
+        self.past_states = deque([torch.tensor(0.0, device=device)]*n, maxlen=n)
+        self.past_actions = deque([torch.tensor(0.0, device=device)]*n, maxlen=n)
 
     def remember(self, state, action, reward, next_state, target):
         current_input = self.current_input
@@ -68,7 +68,7 @@ class QLearningAgent:
         return self.current_input
 
     def act(self, state, setpoint):
-        input_vector = self.build_input(state, setpoint).unsqueeze(0)
+        input_vector = self.build_input(state, setpoint)
         act_values = self.qnetwork(input_vector)
 
         result = 0
@@ -83,7 +83,7 @@ class QLearningAgent:
         return result
 
     def replay(self, batch_size):
-        if len(self.memory) < 13000:
+        if len(self.memory) < 7000:
             return
 
         minibatch = random.sample(self.memory, batch_size)
