@@ -118,6 +118,68 @@ class QLearningAgent:
     def save(self, name):
         torch.save(self.qnetwork.state_dict(), name)
 
+class QLearningAgentBoltzmann(QLearningAgent):
+    def __init__(self, action_size, gamma, temperature,
+                        warmup_steps, learning_rate, learning_rate_decay,
+                        stored_episodes, samples_per_episode,
+                        n=100, alpha=0.1):
+        super().__init__(action_size=action_size, n=n, alpha=alpha, gamma=gamma,
+                        epsilon=0.0, epsilon_decay=0.0, epsilon_min=0.0,
+                        learning_rate=learning_rate, warmup_steps=warmup_steps, learning_rate_decay=learning_rate_decay,
+                        samples_per_episode=samples_per_episode, stored_episodes=stored_episodes)
+        self.temperature = temperature
+
+    def act(self, state, setpoint):
+        past_states, past_actions = self.replay_buffer.getInput(self.n)
+
+        input_vector = torch.cat([
+            past_states,
+            state,
+            past_actions,
+            setpoint], dim=0)
+
+        act_values = self.qnetwork(input_vector)
+        act_probabilities = torch.softmax(act_values / self.temperature, dim=0)
+        result = torch.multinomial(act_probabilities, 1)
+        return result
+
+    def replay(self, batch_size):
+        if self.replay_buffer.size < self.replay_buffer.stored_epsiodes:
+            return
+
+        states, actions, rewards, targets = self.replay_buffer.random_sample(batch_size, self.n + 1)
+
+        current_inputs = torch.cat([
+            states[:, : self.n +1],
+            actions[:, : self.n],
+            targets[:]], dim=1)
+
+        predicted = self.qnetwork(current_inputs)
+
+        next_inputs = torch.cat([
+            states[:, 1 : self.n +2],
+            actions[:, 1: self.n + 1],
+            targets[:]], dim=1)
+
+        next_predicted = self.qnetwork(next_inputs)
+        target_f = predicted.clone()
+
+        for k in range(batch_size):
+            action = actions[k, self.n:self.n+1]
+            next_qvalues = next_predicted[k, :]
+            act_probabilities = torch.softmax(next_qvalues / self.temperature, dim=0)
+            weighted_qvalues = next_qvalues * act_probabilities
+            weighted_sum = weighted_qvalues.sum()
+
+            target = (1-self.alpha) * predicted[k, action] + self.alpha * (rewards[k] + self.gamma * weighted_sum)
+            target_f[k, action] = target
+
+        self.optimizer.zero_grad()
+        loss = self.criterion(target_f, self.qnetwork(current_inputs))
+        loss.backward()
+        self.optimizer.step()
+        self.scheduler.step()
+
 class QLearningAgentContinuous:
     def __init__(self, action_search_batch=64, n=100, learning_rate=0.0001, alpha=0.1, gamma=0.95, average_weight=0.5,
                         epsilon=0.5, epsilon_decay=0.9997, epsilon_min=0.05,
@@ -383,94 +445,3 @@ class QLearningAgentSoft:
         torch.save(self.qnetwork_1.state_dict(), "1_" + name)
         torch.save(self.qnetwork_2.state_dict(), "2_" + name)
 
-class QLearningAgentBolzmann:
-    def __init__(self, action_size, gamma, temperature,
-                        warmup_steps, learning_rate, learning_rate_decay,
-                        n=100, alpha=0.1):
-        self.action_size = action_size
-        self.n = n  # Number of previous states and actions to consider
-        self.input_size = n * 2 + 2  # Last n actions and states + current state and setpoint
-        self.gamma = gamma  # Discount rate
-        self.learning_rate = learning_rate
-        self.temperature = temperature
-        self.alpha = alpha
-
-        self.qnetwork = QNetwork(self.input_size, action_size).to(device)
-        self.optimizer = optim.Adam(self.qnetwork.parameters(), lr=learning_rate)
-        self.criterion = nn.MSELoss()
-
-        # Define Warmup and Decay
-        self.warmup_scheduler = LambdaLR(self.optimizer, lr_lambda=lambda step: warmup_lr_lambda(step, warmup_steps))
-        self.exponential_scheduler = ExponentialLR(self.optimizer, learning_rate_decay)
-        self.scheduler = SequentialLR(self.optimizer, schedulers=[self.warmup_scheduler, self.exponential_scheduler], milestones=[warmup_steps])
-
-        # Replay memory
-        self.memory = deque(maxlen=8000)
-        self.past_states = deque([torch.tensor(0.0, device=device)]*n, maxlen=n)
-        self.past_actions = deque([torch.tensor(0.0, device=device)]*n, maxlen=n)
-
-    def remember(self, action, reward, next_state, target):
-        current_input = self.current_input
-        next_input = self.build_input(next_state, target)
-        self.memory.append((current_input, action, reward, next_input))
-
-    def build_input(self, state, setpoint):
-        self.current_input = torch.cat([
-            torch.tensor(list(self.past_states), device=device),
-            state,
-            torch.tensor(list(self.past_actions), device=device),
-            setpoint], dim=0)
-        return self.current_input
-
-    def act(self, state, setpoint):
-        input_vector = self.build_input(state, setpoint)
-        act_values = self.qnetwork(input_vector)
-
-        # probabilities according to boltzmann distribution
-        act_probabilities = torch.softmax(act_values / self.temperature, dim=0)
-        result = torch.multinomial(act_probabilities, 1)
-        #print(act_values)
-        #print(act_probabilities)
-        #print(result)
-        self.past_actions.append(result)
-        self.past_states.append(state)
-
-        return result
-
-    def replay(self, batch_size):
-        if len(self.memory) < 7000:
-            return
-
-        minibatch = random.sample(self.memory, batch_size)
-        current_inputs = torch.empty((batch_size, self.input_size)).to(device)
-        actions = torch.empty((batch_size, 1)).to(device)
-        rewards = torch.empty((batch_size, 1)).to(device)
-        next_inputs = torch.empty((batch_size, self.input_size)).to(device)
-        i = 0
-        for current_input, action, reward, next_input in minibatch:
-            current_inputs[i] = current_input
-            next_inputs[i] = next_input
-            actions[i] = action
-            rewards[i] = reward
-            i += 1
-
-        actions = actions.long()
-        predicted = self.qnetwork(current_inputs)
-        next_predicted = self.qnetwork(next_inputs)
-        target_f = predicted.clone()
-
-        for k in range(batch_size):
-            target = (1-self.alpha) * predicted[k][actions[k]] + self.alpha * (rewards[k] + self.gamma * torch.max(next_predicted[k]))
-            target_f[k][actions[k]] = target
-
-        self.optimizer.zero_grad()
-        loss = self.criterion(target_f, self.qnetwork(current_inputs))
-        loss.backward()
-        self.optimizer.step()
-        self.scheduler.step()
-
-    def load(self, name):
-        self.qnetwork.load_state_dict(torch.load(name, weights_only=True))
-
-    def save(self, name):
-        torch.save(self.qnetwork.state_dict(), name)
