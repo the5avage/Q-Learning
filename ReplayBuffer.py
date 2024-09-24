@@ -47,7 +47,7 @@ class ReplayBuffer:
         sample_indices = torch.randint(self.samples_per_epsisode - seq_length - 1, (batch_size,), device=self.device) # -1 cause we need one future state
 
         batch_states = torch.zeros((batch_size, seq_length + 1), device=self.device) # +1 for future state
-        batch_actions = torch.zeros((batch_size, seq_length), device=self.device, dtype=torch.int)
+        batch_actions = torch.zeros((batch_size, seq_length), device=self.device, dtype=torch.int64)
         batch_rewards = torch.zeros((batch_size, 1), device=self.device)
         batch_targets = torch.zeros((batch_size, 1), device=self.device)
 

@@ -401,9 +401,8 @@ import ControlSystem
 from QNetwork import *
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+model_name= "qnetwork_11act.pth"
 action_size = 11
-agent = QLearningAgent(action_size=11, epsilon=0)
-agent.load("qnetwork_11act.pth")
 
 K = 2
 T = 5
@@ -415,6 +414,12 @@ steps = int(simulation_time / delta_t)
 time_values = torch.linspace(0.0, simulation_time, steps)
 setpoints = [0.2, 0.5, 0.7, 1.2, 1.5, 1.9]
 rows, cols = 3, 2
+
+agent = QLearningAgent(action_size=action_size, n=100, gamma=0.988,
+                        epsilon=0.0, epsilon_decay=0.99999, epsilon_min=0.08,
+                        learning_rate=0.0, warmup_steps=0, learning_rate_decay=0.0,
+                        stored_episodes=1, samples_per_episode=steps)
+agent.load(model_name)
 
 fig, axes = plt.subplots(rows, cols, figsize=(16, 16))
 i=0
@@ -437,6 +442,8 @@ for setpoint in setpoints:
         output = pt1_with_delay.calculate(control_signal)
         next_state = output
 
+        reward = -torch.abs(next_state - setpoint)
+        agent.remember(state, action, reward, setpoint)
         output_values[step] = output
         control_values[step] = control_signal
 

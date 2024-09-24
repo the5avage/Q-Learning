@@ -104,7 +104,7 @@ class QLearningAgent:
             target_f[k, action] = target
 
         self.optimizer.zero_grad()
-        loss = self.criterion(target_f, self.qnetwork(current_inputs))
+        loss = self.criterion(target_f.gather(1, actions[:, self.n:self.n+1]), self.qnetwork(current_inputs).gather(1, actions[:, self.n:self.n+1]))
         loss.backward()
         self.optimizer.step()
         self.scheduler.step()
@@ -118,6 +118,11 @@ class QLearningAgent:
     def save(self, name):
         torch.save(self.qnetwork.state_dict(), name)
 
+def entropy(probs):
+    # Ensure the probabilities are in a valid range, e.g., not 0 or 1.
+    probs = torch.clamp(probs, min=1e-9)
+    return -torch.sum(probs * torch.log(probs))
+
 class QLearningAgentBoltzmann(QLearningAgent):
     def __init__(self, action_size, gamma, temperature,
                         warmup_steps, learning_rate, learning_rate_decay,
@@ -130,18 +135,23 @@ class QLearningAgentBoltzmann(QLearningAgent):
         self.temperature = temperature
 
     def act(self, state, setpoint):
-        past_states, past_actions = self.replay_buffer.getInput(self.n)
+        with torch.no_grad():
+            past_states, past_actions = self.replay_buffer.getInput(self.n)
 
-        input_vector = torch.cat([
-            past_states,
-            state,
-            past_actions,
-            setpoint], dim=0)
+            input_vector = torch.cat([
+                past_states,
+                state,
+                past_actions,
+                setpoint], dim=0)
 
-        act_values = self.qnetwork(input_vector)
-        act_probabilities = torch.softmax(act_values / self.temperature, dim=0)
-        result = torch.multinomial(act_probabilities, 1)
-        return result
+            act_values = self.qnetwork(input_vector)
+            act_probabilities = torch.softmax(act_values / self.temperature, dim=0)
+            self.entropy_reward = entropy(act_probabilities) * self.temperature
+            result = torch.multinomial(act_probabilities, 1)
+            return result
+
+    def remember(self, state, action, reward, target):
+        self.replay_buffer.add(state, action, reward + self.entropy_reward, target)
 
     def replay(self, batch_size):
         if self.replay_buffer.size < self.replay_buffer.stored_epsiodes:
