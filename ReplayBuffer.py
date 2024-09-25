@@ -2,19 +2,21 @@ import torch
 import torch.nn.functional as F
 
 class ReplayBuffer:
-    def __init__(self, stored_episodes, samples_per_epsiode, device):
+    def __init__(self, stored_episodes, samples_per_epsiode, sequence_length, device):
         with torch.no_grad():
             self.stored_epsiodes = stored_episodes
             self.samples_per_epsisode = samples_per_epsiode
             self.position_episode = 0
-            self.position_sample = 0
+            self.position_sample = sequence_length
             self.size = 0
+            self.seq_length = sequence_length
             self.device=device
+            self.num_samples = samples_per_epsiode + sequence_length
 
-            self.states = torch.zeros((stored_episodes, samples_per_epsiode), device=device)
-            self.actions = torch.zeros((stored_episodes, samples_per_epsiode), device=device, dtype=torch.int)
-            self.rewards = torch.zeros((stored_episodes, samples_per_epsiode), device=device)
-            self.targets = torch.zeros((stored_episodes, samples_per_epsiode), device=device)
+            self.states = torch.zeros((stored_episodes, self.num_samples), device=device)
+            self.actions = torch.zeros((stored_episodes, self.num_samples), device=device, dtype=torch.int)
+            self.rewards = torch.zeros((stored_episodes, self.num_samples), device=device)
+            self.targets = torch.zeros((stored_episodes, self.num_samples), device=device)
 
     def add(self, state, action, reward, target):
         with torch.no_grad():
@@ -24,28 +26,23 @@ class ReplayBuffer:
             self.targets[self.position_episode, self.position_sample] = target
 
             self.position_sample += 1
-            if self.position_sample == self.samples_per_epsisode:
-                self.position_sample = 0
+            if self.position_sample == self.num_samples:
+                self.position_sample = self.seq_length
                 self.position_episode = (self.position_episode + 1) % self.stored_epsiodes
 
                 if self.size < self.stored_epsiodes:
                     self.size += 1
 
-    def getInput(self, seq_length):
+    def getInput(self):
+        seq_length = self.seq_length
         with torch.no_grad():
             episode = self.position_episode
             sample = self.position_sample
-            # when not enough past values. pad zeros as initial state
-            if sample == 0:
-                return torch.zeros([seq_length], device=self.device), torch.zeros([seq_length], device=self.device)
-            if sample < seq_length:
-                diff = seq_length - sample
-                return F.pad(self.states[episode][0:sample], (diff, 0), "constant", 0), F.pad(self.actions[episode][0:sample], (diff, 0), "constant", 0)
-            else:
-                start = sample - seq_length
-                return self.states[episode][start : sample], self.actions[episode][start : sample]
+            start = sample - seq_length
+            return self.states[episode][start : sample], self.actions[episode][start : sample]
 
-    def random_sample(self, batch_size, seq_length):
+    def random_sample(self, batch_size):
+        seq_length = self.seq_length + 1
         with torch.no_grad():
             episode_indices = torch.randint(self.stored_epsiodes, (batch_size,), device=self.device)
             sample_indices = torch.randint(self.samples_per_epsisode - seq_length - 1, (batch_size,), device=self.device) # -1 cause we need one future state

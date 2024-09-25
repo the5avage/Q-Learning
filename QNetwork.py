@@ -44,7 +44,7 @@ class QLearningAgent:
         #self.stored_episodes = stored_episodes
         #self.samples_pre_episode = samples_per_episode
 
-        self.replay_buffer = ReplayBuffer(stored_episodes, samples_per_episode, device=device)
+        self.replay_buffer = ReplayBuffer(stored_episodes, samples_per_episode, n, device=device)
 
         self.qnetwork = QNetwork(self.input_size, action_size).to(device)
         self.optimizer = optim.Adam(self.qnetwork.parameters(), lr=learning_rate)
@@ -60,7 +60,7 @@ class QLearningAgent:
 
     def act(self, state, setpoint):
         with torch.no_grad():
-            past_states, past_actions = self.replay_buffer.getInput(self.n)
+            past_states, past_actions = self.replay_buffer.getInput()
 
             input_vector = torch.cat([
                 past_states,
@@ -83,7 +83,7 @@ class QLearningAgent:
             if self.replay_buffer.size < self.replay_buffer.stored_epsiodes:
                 return
 
-            states, actions, rewards, targets = self.replay_buffer.random_sample(batch_size, self.n + 1)
+            states, actions, rewards, targets = self.replay_buffer.random_sample(batch_size)
 
             current_inputs = torch.cat([
                 states[:, : self.n +1],
