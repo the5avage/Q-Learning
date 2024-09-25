@@ -59,49 +59,51 @@ class QLearningAgent:
         self.replay_buffer.add(state, action, reward, target)
 
     def act(self, state, setpoint):
-        past_states, past_actions = self.replay_buffer.getInput(self.n)
+        with torch.no_grad():
+            past_states, past_actions = self.replay_buffer.getInput(self.n)
 
-        input_vector = torch.cat([
-            past_states,
-            state,
-            past_actions,
-            setpoint], dim=0)
+            input_vector = torch.cat([
+                past_states,
+                state,
+                past_actions,
+                setpoint], dim=0)
 
-        act_values = self.qnetwork(input_vector)
+            act_values = self.qnetwork(input_vector)
 
-        result = 0
-        if np.random.rand() <= self.epsilon:
-            result = torch.randint(self.action_size, (1,), device=device)
-        else:
-            result = torch.argmax(act_values)
+            result = 0
+            if np.random.rand() <= self.epsilon:
+                result = torch.randint(self.action_size, (1,), device=device)
+            else:
+                result = torch.argmax(act_values)
 
-        return result
+            return result
 
     def replay(self, batch_size):
-        if self.replay_buffer.size < self.replay_buffer.stored_epsiodes:
-            return
+        with torch.no_grad():
+            if self.replay_buffer.size < self.replay_buffer.stored_epsiodes:
+                return
 
-        states, actions, rewards, targets = self.replay_buffer.random_sample(batch_size, self.n + 1)
+            states, actions, rewards, targets = self.replay_buffer.random_sample(batch_size, self.n + 1)
 
-        current_inputs = torch.cat([
-            states[:, : self.n +1],
-            actions[:, : self.n],
-            targets[:]], dim=1)
+            current_inputs = torch.cat([
+                states[:, : self.n +1],
+                actions[:, : self.n],
+                targets[:]], dim=1)
 
-        predicted = self.qnetwork(current_inputs)
+            predicted = self.qnetwork(current_inputs)
 
-        next_inputs = torch.cat([
-            states[:, 1 : self.n +2],
-            actions[:, 1: self.n + 1],
-            targets[:]], dim=1)
+            next_inputs = torch.cat([
+                states[:, 1 : self.n +2],
+                actions[:, 1: self.n + 1],
+                targets[:]], dim=1)
 
-        next_predicted = self.qnetwork(next_inputs)
-        target_f = predicted.clone()
+            next_predicted = self.qnetwork(next_inputs)
+            target_f = predicted.clone()
 
-        for k in range(batch_size):
-            action = actions[k, self.n:self.n+1]
-            target = (1-self.alpha) * predicted[k, action] + self.alpha * (rewards[k] + self.gamma * torch.max(next_predicted[k, :]))
-            target_f[k, action] = target
+            for k in range(batch_size):
+                action = actions[k, self.n:self.n+1]
+                target = (1-self.alpha) * predicted[k, action] + self.alpha * (rewards[k] + self.gamma * torch.max(next_predicted[k, :]))
+                target_f[k, action] = target
 
         self.optimizer.zero_grad()
         loss = self.criterion(target_f.gather(1, actions[:, self.n:self.n+1]), self.qnetwork(current_inputs).gather(1, actions[:, self.n:self.n+1]))
