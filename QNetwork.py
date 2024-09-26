@@ -106,7 +106,7 @@ class QLearningAgent:
                 target_f[k, action] = target
 
         self.optimizer.zero_grad()
-        loss = self.criterion(target_f.gather(1, actions[:, self.n:self.n+1]), self.qnetwork(current_inputs).gather(1, actions[:, self.n:self.n+1]))
+        loss = self.criterion(target_f, self.qnetwork(current_inputs))
         loss.backward()
         self.optimizer.step()
         self.scheduler.step()
@@ -120,13 +120,44 @@ class QLearningAgent:
     def save(self, name):
         torch.save(self.qnetwork.state_dict(), name)
 
+class QLearningAgentComp(QLearningAgent):
+    def __init__(self, *args, **kwargs):
+        # Forward all arguments to the parent constructor
+        super().__init__(*args, **kwargs)
+
+    def act(self, state, setpoint):
+        with torch.no_grad():
+            past_states, past_actions = self.replay_buffer.getInput()
+
+            input_vector = torch.cat([
+                past_states,
+                state,
+                past_actions,
+                setpoint], dim=0)
+
+            act_values = self.qnetwork(input_vector)
+
+            result = 0
+            if np.random.rand() <= self.epsilon:
+                result = torch.randint(self.action_size, (1,), device=device)
+            else:
+                result = torch.argmax(act_values)
+
+            self.compensation = torch.max(act_values) - act_values[result]
+            return result
+
+    def remember(self, state, action, reward, target):
+        with torch.no_grad():
+            self.replay_buffer.add(state, action, reward + self.compensation, target)
+
 def entropy(probs):
-    # Ensure the probabilities are in a valid range, e.g., not 0 or 1.
-    probs = torch.clamp(probs, min=1e-9)
+    # Ensure the probabilities are not 0.0
+    probs = torch.clamp(probs, min=1e-20)
     return -torch.sum(probs * torch.log(probs))
 
 class QLearningAgentBoltzmann(QLearningAgent):
-    def __init__(self, action_size, gamma, temperature,
+    def __init__(self, action_size, gamma, 
+                        temperature, temperature_decay, temperature_min,
                         warmup_steps, learning_rate, learning_rate_decay,
                         stored_episodes, samples_per_episode,
                         n=100, alpha=0.1):
@@ -135,10 +166,12 @@ class QLearningAgentBoltzmann(QLearningAgent):
                         learning_rate=learning_rate, warmup_steps=warmup_steps, learning_rate_decay=learning_rate_decay,
                         samples_per_episode=samples_per_episode, stored_episodes=stored_episodes)
         self.temperature = temperature
+        self.temperature_decay = temperature_decay
+        self.temperature_min = temperature_min
 
     def act(self, state, setpoint):
         with torch.no_grad():
-            past_states, past_actions = self.replay_buffer.getInput(self.n)
+            past_states, past_actions = self.replay_buffer.getInput()
 
             input_vector = torch.cat([
                 past_states,
@@ -148,49 +181,57 @@ class QLearningAgentBoltzmann(QLearningAgent):
 
             act_values = self.qnetwork(input_vector)
             act_probabilities = torch.softmax(act_values / self.temperature, dim=0)
-            self.entropy_reward = entropy(act_probabilities) * self.temperature
             result = torch.multinomial(act_probabilities, 1)
+            weighted_average = torch.sum(act_values * act_probabilities)
+            compensation = weighted_average - act_values[result]
+            self.entropy_reward = entropy(act_probabilities) * self.temperature + compensation
             return result
 
     def remember(self, state, action, reward, target):
-        self.replay_buffer.add(state, action, reward + self.entropy_reward, target)
+        with torch.no_grad():
+            self.replay_buffer.add(state, action, reward + self.entropy_reward, target)
 
     def replay(self, batch_size):
         if self.replay_buffer.size < self.replay_buffer.stored_epsiodes:
             return
 
-        states, actions, rewards, targets = self.replay_buffer.random_sample(batch_size, self.n + 1)
+        with torch.no_grad():
+            states, actions, rewards, targets = self.replay_buffer.random_sample(batch_size)
 
-        current_inputs = torch.cat([
-            states[:, : self.n +1],
-            actions[:, : self.n],
-            targets[:]], dim=1)
+            current_inputs = torch.cat([
+                states[:, : self.n +1],
+                actions[:, : self.n],
+                targets[:]], dim=1)
 
-        predicted = self.qnetwork(current_inputs)
+            predicted = self.qnetwork(current_inputs)
 
-        next_inputs = torch.cat([
-            states[:, 1 : self.n +2],
-            actions[:, 1: self.n + 1],
-            targets[:]], dim=1)
+            next_inputs = torch.cat([
+                states[:, 1 : self.n +2],
+                actions[:, 1: self.n + 1],
+                targets[:]], dim=1)
 
-        next_predicted = self.qnetwork(next_inputs)
-        target_f = predicted.clone()
+            next_predicted = self.qnetwork(next_inputs)
+            target_f = predicted.clone()
 
-        for k in range(batch_size):
-            action = actions[k, self.n:self.n+1]
-            next_qvalues = next_predicted[k, :]
-            act_probabilities = torch.softmax(next_qvalues / self.temperature, dim=0)
-            weighted_qvalues = next_qvalues * act_probabilities
-            weighted_sum = weighted_qvalues.sum()
+            for k in range(batch_size):
+                action = actions[k, self.n:self.n+1]
+                next_qvalues = next_predicted[k, :]
+                act_probabilities = torch.softmax(next_qvalues / self.temperature, dim=0)
+                weighted_qvalues = next_qvalues * act_probabilities
+                weighted_sum = weighted_qvalues.sum()
 
-            target = (1-self.alpha) * predicted[k, action] + self.alpha * (rewards[k] + self.gamma * weighted_sum)
-            target_f[k, action] = target
+                target = (1-self.alpha) * predicted[k, action] + self.alpha * (rewards[k] + self.gamma * weighted_sum)
+                target_f[k, action] = target
 
         self.optimizer.zero_grad()
         loss = self.criterion(target_f, self.qnetwork(current_inputs))
         loss.backward()
         self.optimizer.step()
         self.scheduler.step()
+
+        if self.temperature > self.temperature_min:
+            self.temperature *= self.temperature_decay
+
 
 class QLearningAgentContinuous:
     def __init__(self, action_search_batch=64, n=100, learning_rate=0.0001, alpha=0.1, gamma=0.95, average_weight=0.5,
