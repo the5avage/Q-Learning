@@ -120,6 +120,8 @@ class QLearningAgent:
     def save(self, name):
         torch.save(self.qnetwork.state_dict(), name)
 
+# Here the idea is tested, to give the agent a compensation when a suboptimal action is chosen for exploration.
+# The results are very similiar to the parent version, but more testing needs to be done
 class QLearningAgentComp(QLearningAgent):
     def __init__(self, *args, **kwargs):
         # Forward all arguments to the parent constructor
@@ -155,8 +157,13 @@ def entropy(probs):
     probs = torch.clamp(probs, min=1e-20)
     return -torch.sum(probs * torch.log(probs))
 
+# Here the discrete version is modified into a Soft Q-Learning algorithm.
+# A probability for each action is calculated by softmax(q_values / temperature).
+# There is an analogy to the boltzmann gibbs distribution. The Q-Values can be seen as as energy levels
+# of the states and the probabilies of a particle beeing in a certain state, corresponds to the probability
+# of a certain action.
 class QLearningAgentBoltzmann(QLearningAgent):
-    def __init__(self, action_size, gamma, 
+    def __init__(self, action_size, gamma,
                         temperature, temperature_decay, temperature_min,
                         warmup_steps, learning_rate, learning_rate_decay,
                         stored_episodes, samples_per_episode,
