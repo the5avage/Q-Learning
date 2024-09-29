@@ -511,7 +511,7 @@ Where:
 The result of this maximization is the softmax of the Q-values, divided by the temperature. This is analogous to the Boltzmann-Gibbs distribution, where the Q-values correspond to the energy levels of different particle states:
 
 ```math
-\pi(a_i|s) = \frac{\exp\left(\frac{Q(s, a_i)}{\beta}\right)}{\sum_{j} \exp\left(\frac{Q(s, a_j)}{\beta}\right)} = \text{softmax}(\frac{Q(s, a_i)}{\beta})
+x_i(a_i|s) = \frac{\exp\left(\frac{Q(s, a_i)}{\beta}\right)}{\sum_{j} \exp\left(\frac{Q(s, a_j)}{\beta}\right)} = \text{softmax}(\frac{Q(s, a_i)}{\beta})
 ```
 
 The target update of the Q-Learning algorithm must also be modified. Previously, the maximum Q-value of the next state was used to calculate the target,
@@ -519,7 +519,7 @@ assuming that the best action (according to the Q-network) would always be selec
 Now, actions are selected according to the calculated probabilities, so the target update must incorporate the weighted average of future Q-values:
 
 ```math
-Q(s_t, a_t)_{\text{target}} \leftarrow (1-\alpha) Q(s_t, a_t) + \alpha \left[ r_{t+1} + \gamma \sum_{a_{t+1}} \pi(a_{t+1}|s_{t+1}) Q(s_{t+1}, a_{t+1}) \right]
+Q(s_t, a_t)_{\text{target}} \leftarrow (1-\alpha) Q(s_t, a_t) + \alpha \left[ r_{t+1} + \gamma \sum_{a_{t+1}} x_i(a_{t+1}|s_{t+1}) Q(s_{t+1}, a_{t+1}) \right]
 ```
 
 As described earlier (see the section on Soft Q-Learning), a reward is also added based on the resulting probability distribution and the temperature parameter. This encourages states where multiple actions are viable.  
