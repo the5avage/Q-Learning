@@ -48,9 +48,10 @@ This is often a good approximation of reality. For example, when the energy capa
 Since the change of the water temperature depends on the water temperature itself, a differential equation is needed to describe the plant. The following equation can be used to describe the water temperature.  
 Based on the first law of thermodynamics, one can state that the change of the energy stored inside the water, must be equal to the incoming electric power and the power loss due to imperfect isolation.  
 The equation is derived by setting the sum of all powers to zero:
-$$
+
+```math
 C \frac{dT_\text{water}(t)}{dt} = \eta I_{\text{electric}(t)} - hA \left( T_\text{water}(t) - T_{ambient} \right)
-$$
+```
 
 Where:
 - $T_\text{water}(t)$: water temperature, called process variable (in $°C$)
@@ -58,10 +59,10 @@ Where:
 - $C \frac{dT_\text{water}(t)}{dt}$: time rate of change of the energy stored inside the system (in $Joule\ per\ second$ or $Watt$)
     - $C$: the thermal capacity of the water in the tank (in $Joule\ per\ Kelvin$)
     - $\frac{dT_\text{water}(t)}{dt}$: time rate of change of the water temperature (in $Kelvin$)
-- $ \eta I_{\text{electric}(t)}$: electric power heating up the water (in $Volt ⋅ Ampere$ or $Watt$)
+- $\eta I_{\text{electric}(t)}$: electric power heating up the water (in $Volt ⋅ Ampere$ or $Watt$)
     - $\eta$: constant containing the voltage of the source and an efficiency factor (in $Volt$)
 - $hA \left( T_\text{water}(t) - T_{ambient} \right)$ heatflow caused by imperfect isolation (in $Watt$)
-    - $h$: the heat transfer coefficient (in $Watt / (m^2⋅Kelvin)$)
+    - $h$: the heat transfer coefficient (in $`Watt / (m^2⋅Kelvin)`$)
     - $A$: surface area of the water tank (in $m^2$)
     - $T_{ambient}$: temperature of the environment (in $°C$)
     - $T_\text{water}(t) - T_{ambient}$: the temperature gradient that causes the heat flow (in $Kelvin$)
@@ -71,9 +72,9 @@ Where:
 In control theory, the same equation is usually written in a different form, which is shown in the equation below. Only 2 constants are used and the input signal and process variable are unitless.  
 Here the process variable $y(t)$ describes the difference between the water temperature and the ambient temperature. The ambient temperature could be added as an offset to avoid this:
 
-$$
+```math
 \tau \frac{dy(t)}{dt} + y(t) = K u(t)
-$$
+```
 
 Where:
 - $y(t)$: process variable $y(t) = T_\text{water}(t) - T_{ambient}$
@@ -93,16 +94,16 @@ While the PT1 system itself is linear, the addition of a delay makes the overall
 
 The __error__ is the difference between the setpoint and the process variable.  
 
-$$
+```math
 error(t) = setpoint - process\_variable(t)
-$$
+```
 
 The __loss function__ describes the goal of an optimization problem. Here, the goal of the controller is to minimize the absolute value of the error.
 The loss function is defined as the mean absolute error over time. This loss is used to compare the quality of the different control strategies:
 
-$$
+```math
 mean\_absolute\_error = \frac{1}{n} \sum_{i=1}^{n} |error(t_i)|
-$$
+```
 
 ### System for comparison
 
@@ -247,12 +248,12 @@ plt.show()
 
 ### PID-Controller
 
-The [PID controller](https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller) is used for a wide range of applications. The controller's input is the difference between the process variable and the setpoint, known as error ($e(t)$). The output of the controller is the input signal of the plant ($u(t)$).
+The [PID controller](https://en.wikipedia.org/wiki/Proportional%E2%80%93integral%E2%80%93derivative_controller) is used for a wide range of applications. The controller's input is the difference between the process variable and the setpoint, known as error ($`e(t)`$). The output of the controller is the input signal of the plant ($`u(t)`$).
 The following formula describes the PID-Controller, with three constants ($K_p$, $K_i$ and $K_d$):  
 
-$$
+```math
 u(t) = K_p e(t) + K_i \int_{0}^{t} e(\tau) d\tau + K_d \frac{d}{dt} e(t)
-$$
+```
 
 ### Windup Compensation
 
@@ -348,9 +349,9 @@ The beauty of the Q-Learning algorithm lies in the fact that it can solve proble
 
 The Q-Learning algorithm updates the Q-value for a state-action pair $(s, a)$ using the following formula:
 
-$$
+```math
 Q(s_t, a_t)_\text{target} \leftarrow (1-\alpha) Q(s_t, a_t) + \alpha \left[ r_\text{t+1} + \gamma \max_{a_\text{t + 1}} Q(s_\text{t+1}, a_\text{t+1})\right]
-$$
+```
 
 Where:
 - $Q(s_t, a_t)$ is the current Q-value for the state $(s_t)$ and action $(a_t)$.
@@ -474,9 +475,9 @@ plt.show()
 
 In [Soft Q-Learning](https://arxiv.org/pdf/1702.08165) actions are represented by probability distributions. A random value is then sampled from this probability distribution to determine the specific action. Additionally, a small reward is added depending on the entropy of the selected probability distribution. In information theory, the [entropy](https://en.wikipedia.org/wiki/Entropy_(information_theory)) $H(X)$ is a measure of how much information is needed to describe the state of a random variable $X$. In contrast to the previously shown Q-Learning algorithms, the reward in soft Q-Learning is defined as:
 
-$$
+```math
 r_\text{soft}(a) = r + \beta \mathcal{H}(a)
-$$
+```
 
 Where:
 - $r_\text{soft}(a)$: The reward in Soft Q-Learning
@@ -497,9 +498,9 @@ The previously described discrete version can be adapted into a Soft Q-Learning 
 Now, instead, a probability is calculated for each action in a way that maximizes the weighted average of the Q-values and the entropy of the probability distribution.  
 Then, a specific action is sampled according to these probabilities. This process can be expressed by calculating the probabilities $x_1, x_2, …, x_n$​ in such a way that the following formula is maximized:
 
-$$
+```math
 f(x_1, x_2, \dots, x_n) = \sum_{i=1}^{n} q_i \cdot x_i + \beta \cdot \mathcal{H}(X)
-$$
+```
 
 Where:
 - $q_i$: The Q-Value of a discrete action i
@@ -508,17 +509,17 @@ Where:
 
 The result of this maximization is the softmax of the Q-values, divided by the temperature. This is analogous to the Boltzmann-Gibbs distribution, where the Q-values correspond to the energy levels of different particle states:
 
-$$
+```math
 \pi(a_i|s) = \frac{\exp\left(\frac{Q(s, a_i)}{\beta}\right)}{\sum_{j} \exp\left(\frac{Q(s, a_j)}{\beta}\right)} = \text{softmax}(\frac{Q(s, a_i)}{\beta})
-$$
+```
 
 The target update of the Q-Learning algorithm must also be modified. Previously, the maximum Q-value of the next state was used to calculate the target,
 assuming that the best action (according to the Q-network) would always be selected during interaction with the environment.  
 Now, actions are selected according to the calculated probabilities, so the target update must incorporate the weighted average of future Q-values:
 
-$$
+```math
 Q(s_t, a_t)_{\text{target}} \leftarrow (1-\alpha) Q(s_t, a_t) + \alpha \left[ r_{t+1} + \gamma \sum_{a_{t+1}} \pi(a_{t+1}|s_{t+1}) Q(s_{t+1}, a_{t+1}) \right]
-$$
+```
 
 As described earlier (see the section on Soft Q-Learning), a reward is also added based on the resulting probability distribution and the temperature parameter. This encourages states where multiple actions are viable.  
 The temperature parameter for action selection controls exploration during training, while the reward's temperature parameter determines the balance between reducing error and being in states where many actions are valid.
