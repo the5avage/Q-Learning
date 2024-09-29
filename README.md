@@ -508,6 +508,12 @@ Where:
 - $x_i$: The probability of choosing action i
 - $\beta$: The temperature parameter
 
+The entropy of the discrete probability distribution can be calculated with the probabilities $x_1, x_2, …, x_n$.
+
+```math
+\mathcal{H}(X) = - \sum_{i} x_i \log x_i
+```
+
 The result of this maximization is the softmax of the Q-values, divided by the temperature. This is analogous to the Boltzmann-Gibbs distribution, where the Q-values correspond to the energy levels of different particle states:
 
 ```math
@@ -522,7 +528,7 @@ Now, actions are selected according to the calculated probabilities, so the targ
 Q(s_t, a_t)_{\text{target}} \leftarrow (1-\alpha) Q(s_t, a_t) + \alpha \left[ r_{t+1} + \gamma \sum_{a_{t+1}} x_i(a_{t+1}|s_{t+1}) Q(s_{t+1}, a_{t+1}) \right]
 ```
 
-As described earlier (see the section on Soft Q-Learning), a reward is also added based on the resulting probability distribution and the temperature parameter. This encourages states where multiple actions are viable.  
+As described earlier (see the section on Soft Q-Learning), a reward is also added based on the entropy of the probability distribution and the temperature parameter. This encourages states where multiple actions are viable.  
 The temperature parameter for action selection controls exploration during training, while the reward's temperature parameter determines the balance between reducing error and being in states where many actions are valid.
 
 ### Results
