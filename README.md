@@ -1,16 +1,18 @@
 # Q-Learning for Temperature Control
 
-In this project, a controller based on Q-Learning is used to regulate a system which is common in temperature control problems.  
-A first-order system with time delay (PT1 with delay) is used to model the system response. This is a simple control system, but it is non-linear because of the delay.  
-It is also a good enough approximation for many real-world control problems, e.g., temperature control systems with a single energy capacity (section Control Problem).  
-A human can quickly estimate how far the result is from the best possible sequence of actions, by just looking at a plot (section Optimal Policy).  
+In this project, a Q-Learning-based controller is used to regulate a first-order system with time delay (PT1 with delay), which is commonly encountered in temperature control problems.  
+This system, although simple, exhibits non-linear behavior due to the delay, making it a good approximation for many real-world control systems, such as temperature control with a single energy capacity (see the section on Control Problem).  
+For this temperature control problem, it's easy for a human to visually estimate how close the system's behavior is to the optimal policy by simply examining a plot (see the section on Optimal Policy).
 The most common approach for these control problems is a PI or PID controller. Although this works very well, it is __not__ the optimal policy. That means even for a simple control problem like this, machine learning could improve the performance and energy usage of many devices in use today.
 
-Q-Learning is used to train a neural network to solve the control problem. The result is compared with the optimal policy and the result of a PID-Controller (tuned according to standard practice).  
-Three variants of the same Q-Learning Algorithm are compared. The main motivation for the second and third version is to later extend them to (Soft) Actor-Critic methods.
-1. An action is represented by a discrete number of values
-2. An action is represented by a continuous value
-3. An action is represented by a probability distribution (called Soft Q-Learning)
+In this project, Q-Learning is used to train a neural network to solve the temperature control problem. The controller's performance is compared against both the optimal policy and a PID controller tuned according to standard practices.
+
+Four variants of the Q-Learning algorithm are compared. The first two versions deliver strong results, while the third and fourth are designed with future extensions to (Soft) Actor-Critic methods in mind:
+
+1. Actions are represented by a discrete set of values.
+2. Actions are represented by a discrete probability distribution.
+3. Actions are represented by continuous values.
+4. Actions are represented by a continuous probability distribution.
 
 The files in this project are structured in the following way:
 - README.ipynb: Explanation of the project and results
@@ -60,7 +62,7 @@ Where:
 - $\eta I_{\text{electric}(t)}$: electric power heating up the water (in $Volt ⋅ Ampere$ or $Watt$)
     - $\eta$: constant containing the voltage of the source and an efficiency factor (in $Volt$)
 - $hA \left( T_\text{water}(t) - T_{ambient} \right)$ heatflow caused by imperfect isolation (in $Watt$)
-    - $h$: the heat transfer coefficient (in $`Watt / (m^2 ⋅ Kelvin)`$ )
+    - $h$: the heat transfer coefficient (in $`Watt / (m^2⋅Kelvin)`$)
     - $A$: surface area of the water tank (in $m^2$)
     - $T_{ambient}$: temperature of the environment (in $°C$)
     - $T_\text{water}(t) - T_{ambient}$: the temperature gradient that causes the heat flow (in $Kelvin$)
@@ -70,9 +72,9 @@ Where:
 In control theory, the same equation is usually written in a different form, which is shown in the equation below. Only 2 constants are used and the input signal and process variable are unitless.  
 Here the process variable $y(t)$ describes the difference between the water temperature and the ambient temperature. The ambient temperature could be added as an offset to avoid this:
 
-$$
+```math
 \tau \frac{dy(t)}{dt} + y(t) = K u(t)
-$$
+```
 
 Where:
 - $y(t)$: process variable $y(t) = T_\text{water}(t) - T_{ambient}$
@@ -378,10 +380,9 @@ Since the problem here is relatively simple, a fully connected network with 3 La
 The input is a tensor containing a time series of past process variables, input signals as well as the current setpoint.  
 
 The reward is defined as the negative absolute error:
-
-```math
+$$
 reward(t) = - | error(t) |
-```
+$$
 
 #### Results
 
@@ -462,12 +463,150 @@ for setpoint in setpoints:
 fig.suptitle(f'Discrete Q-Learning for PT1 System with Delay\nT={T}, K={K}, delay={delay}\n\nMean Absolute Error (MAE): {overall_mean_error:5.4f}')
 plt.legend()
 plt.show()
-
 ```
 
 
     
 ![png](README_files/README_7_0.png)
+    
+
+
+## Soft Q-Learning
+
+In [Soft Q-Learning](https://arxiv.org/pdf/1702.08165) actions are represented by probability distributions. A random value is then sampled from this probability distribution to determine the specific action. Additionally, a small reward is added depending on the entropy of the selected probability distribution. In information theory, the [entropy](https://en.wikipedia.org/wiki/Entropy_(information_theory)) $H(X)$ is a measure of how much information is needed to describe the state of a random variable $X$. In contrast to the previously shown Q-Learning algorithms, the reward in soft Q-Learning is defined as:
+
+```math
+r_\text{soft}(a) = r + \beta \mathcal{H}(a)
+```
+
+Where:
+- $r_\text{soft}(a)$: The reward in Soft Q-Learning
+- $r$: The reward that represents the objective
+- $a$: Probability distribution that represents the action selected in the previous timestep
+- $\mathcal{H}(a)$: The entropy of the probability distribution
+- $\beta$: Is called __temperature__ parameter and determines the relative importance of the entropy term against the reward
+
+By maximizing entropy alongside the objective, the agent is encouraged to maximize the expected reward while acting as randomly as possible. 
+This indicates that a state where many actions lead to a good outcome is preferable to one where the same result can only be achieved with very specific actions.  
+For example, one can imagine a chess position with approximately 50% winning chances for both sides according to a chess engine. This could be a simple position early in the opening, but it could also be a position where Black is under attack and there is __only one__ possible sequence of moves to survive. For a human, these are very different positions.  
+Another benefit is, that rewarding higher entropy encourages exploration.
+
+### Soft Q-Learning with discrete actions
+
+The previously described discrete version can be adapted into a Soft Q-Learning algorithm with minor modifications. In the standard approach, the action with the highest Q-value was selected (greedy strategy), and for exploration, a random action was sometimes chosen.
+
+Now, instead, a probability is calculated for each action in a way that maximizes the weighted average of the Q-values and the entropy of the probability distribution.  
+Then, a specific action is sampled according to these probabilities. This process can be expressed by calculating the probabilities $x_1, x_2, …, x_n$​ in such a way that the following formula is maximized:
+
+```math
+f(x_1, x_2, \dots, x_n) = \sum_{i=1}^{n} q_i \cdot x_i + \beta \cdot \mathcal{H}(X)
+```
+
+Where:
+- $q_i$: The Q-Value of a discrete action i
+- $x_i$: The probability of choosing action i
+- $\beta$: The temperature parameter
+
+The result of this maximization is the softmax of the Q-values, divided by the temperature. This is analogous to the Boltzmann-Gibbs distribution, where the Q-values correspond to the energy levels of different particle states:
+
+```math
+\pi(a_i|s) = \frac{\exp\left(\frac{Q(s, a_i)}{\beta}\right)}{\sum_{j} \exp\left(\frac{Q(s, a_j)}{\beta}\right)} = \text{softmax}(\frac{Q(s, a_i)}{\beta})
+```
+
+The target update of the Q-Learning algorithm must also be modified. Previously, the maximum Q-value of the next state was used to calculate the target,
+assuming that the best action (according to the Q-network) would always be selected during interaction with the environment.  
+Now, actions are selected according to the calculated probabilities, so the target update must incorporate the weighted average of future Q-values:
+
+```math
+Q(s_t, a_t)_{\text{target}} \leftarrow (1-\alpha) Q(s_t, a_t) + \alpha \left[ r_{t+1} + \gamma \sum_{a_{t+1}} \pi(a_{t+1}|s_{t+1}) Q(s_{t+1}, a_{t+1}) \right]
+```
+
+As described earlier (see the section on Soft Q-Learning), a reward is also added based on the resulting probability distribution and the temperature parameter. This encourages states where multiple actions are viable.  
+The temperature parameter for action selection controls exploration during training, while the reward's temperature parameter determines the balance between reducing error and being in states where many actions are valid.
+
+### Results
+
+The results obtained using this approach are slightly better than those achieved with the traditional $\epsilon$-greedy strategy. Training is also much more stable, requiring fewer attempts to achieve optimal results.
+
+During evaluation, the temperature parameter can be adjusted to balance randomness and reward maximization. Alternatively, one can follow the greedy strategy during evaluation.
+
+
+```python
+import matplotlib.pyplot as plt
+import torch
+import numpy as np
+import ControlSystem
+from QNetwork import *
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+model_name= "qnetwork_11act_boltzmann.pth"
+action_size = 11
+
+K = 2
+T = 5
+delay = 2
+delta_t = 0.1
+
+simulation_time = 30
+steps = int(simulation_time / delta_t)
+time_values = torch.linspace(0.0, simulation_time, steps)
+setpoints = [0.2, 0.5, 0.7, 1.2, 1.5, 1.9]
+rows, cols = 3, 2
+
+agent = QLearningAgentBoltzmann(action_size=action_size, n=100, gamma=0.988,
+                        #epsilon=0.0, epsilon_decay=0.99999, epsilon_min=0.08,
+                        temperature=0.00001, temperature_decay=0.99999, temperature_min=0.003,
+                        learning_rate=0.0, warmup_steps=0, learning_rate_decay=0.0,
+                        stored_episodes=1, samples_per_episode=steps)
+agent.load(model_name)
+
+fig, axes = plt.subplots(rows, cols, figsize=(16, 16))
+i=0
+overall_mean_error = 0.0
+for setpoint in setpoints:
+    ax = axes[i // cols, i % cols]
+    i += 1
+
+    pt1_with_delay = ControlSystem.PT1(K=K, T=T, delta_t=delta_t, delay=delay)
+    state = pt1_with_delay.y_prev
+    setpoint = torch.tensor([setpoint], device=device)
+    output_values = torch.zeros([steps], device=device)
+    control_values = torch.zeros([steps], device=device)
+
+    for step in range(steps):
+        action = agent.act(state, setpoint)
+
+        control_signal = action / (action_size - 1)
+
+        output = pt1_with_delay.calculate(control_signal)
+        next_state = output
+
+        reward = -torch.abs(next_state - setpoint)
+        agent.remember(state, action, reward, setpoint)
+        output_values[step] = output
+        control_values[step] = control_signal
+
+        state = next_state
+
+    mean_error = torch.mean(torch.abs(output_values - setpoint))
+    overall_mean_error += mean_error / len(setpoints)
+
+    ax.plot(time_values, control_values.cpu(), label='Input Signal', linewidth=0.5)
+    ax.plot(time_values, output_values.cpu(), label='Process Variable')
+    ax.axhline(setpoint.cpu(), linestyle="--", color="r", label="Setpoint")
+    ax.set_xlabel('Time [s]')
+    ax.set_ylabel('y')
+    ax.set_title(f'MAE: {mean_error:5.4f}')
+    ax.grid(True)
+fig.suptitle(f'Discrete Q-Learning for PT1 System with Delay\nT={T}, K={K}, delay={delay}\n\nMean Absolute Error (MAE): {overall_mean_error:5.4f}')
+plt.legend()
+plt.show()
+
+```
+
+
+    
+![png](README_files/README_9_0.png)
     
 
 
@@ -559,31 +698,14 @@ plt.show()
 
 
     
-![png](README_files/README_9_0.png)
+![png](README_files/README_11_0.png)
     
 
 
-## Soft Q-Learning
+## Soft Q-Learning with continuous action space
 
-In [Soft Q-Learning](https://arxiv.org/pdf/1702.08165) actions are represented by probability distributions instead of scalar values. A random value is then sampled from this probability distribution to determine the specific action. Additionally, a small reward is added depending on the entropy of the selected probability distribution. In information theory, the [entropy](https://en.wikipedia.org/wiki/Entropy_(information_theory)) $H(X)$ is a measure of how much information is needed to describe the state of a random variable $X$. In contrast to the previously shown Q-Learning algorithms, the reward in soft Q-Learning is defined as:
+Here, the previously described Q-Learning algorithm for continuous action spaces is modified into a Soft Q-Learning version.
 
-$$
-r_\text{soft}(a) = r + \beta H(a)
-$$
-
-Where:
-- $r_\text{soft}(a)$: The reward in Soft Q-Learning
-- $r$: The reward that represents the objective
-- $a$: Probability distribution that represents the action selected in the previous timestep
-- $H(a)$: The entropy of the probability distribution
-- $\beta$: Is called __temperature__ parameter and determines the relative importance of the entropy term against the reward
-
-By maximizing entropy alongside the objective, the agent is encouraged to maximize the expected reward while acting as randomly as possible. 
-This indicates that a state where many actions lead to a good outcome is preferable to one where the same result can only be achieved with very specific actions.  
-For example, one can imagine a chess position with approximately 50% winning chances for both sides according to a chess engine. This could be a simple position early in the opening, but it could also be a position where Black is under attack and there is __only one__ possible sequence of moves to survive. For a human, these are very different positions.  
-Another benefit is, that rewarding higher entropy encourages exploration. 
-
-## Modifications
 ### Truncated normal distribution
 
 Since the controller output must remain within the [0, 1] interval, a truncated normal distribution is used to represent the action.
@@ -637,11 +759,11 @@ plt.show()
 
 
     
-![png](README_files/README_11_0.png)
+![png](README_files/README_13_0.png)
     
 
 
-## Soft Q-Learning Results
+## Continuous Soft Q-Learning Results
 
 The next code cell shows the results for the agent based on Soft Q-Learning. The plot now contains the values of $\mu$ and $\sigma$ that define the truncated normal distribution from which the input signal is sampled.  
 
@@ -725,7 +847,7 @@ plt.show()
 
 
     
-![png](README_files/README_13_0.png)
+![png](README_files/README_15_0.png)
     
 
 
