@@ -120,38 +120,6 @@ class QLearningAgent:
     def save(self, name):
         torch.save(self.qnetwork.state_dict(), name)
 
-# Here the idea is tested, to give the agent a compensation when a suboptimal action is chosen for exploration.
-# The results are very similiar to the parent version, but more testing needs to be done
-class QLearningAgentComp(QLearningAgent):
-    def __init__(self, *args, **kwargs):
-        # Forward all arguments to the parent constructor
-        super().__init__(*args, **kwargs)
-
-    def act(self, state, setpoint):
-        with torch.no_grad():
-            past_states, past_actions = self.replay_buffer.getInput()
-
-            input_vector = torch.cat([
-                past_states,
-                state,
-                past_actions,
-                setpoint], dim=0)
-
-            act_values = self.qnetwork(input_vector)
-
-            result = 0
-            if np.random.rand() <= self.epsilon:
-                result = torch.randint(self.action_size, (1,), device=device)
-            else:
-                result = torch.argmax(act_values)
-
-            self.compensation = torch.max(act_values) - act_values[result]
-            return result
-
-    def remember(self, state, action, reward, target):
-        with torch.no_grad():
-            self.replay_buffer.add(state, action, reward + self.compensation, target)
-
 def entropy(probs):
     # Ensure the probabilities are not 0.0
     probs = torch.clamp(probs, min=1e-20)
@@ -189,9 +157,7 @@ class QLearningAgentBoltzmann(QLearningAgent):
             act_values = self.qnetwork(input_vector)
             act_probabilities = torch.softmax(act_values / self.temperature, dim=0)
             result = torch.multinomial(act_probabilities, 1)
-            weighted_average = torch.sum(act_values * act_probabilities)
-            compensation = weighted_average - act_values[result]
-            self.entropy_reward = entropy(act_probabilities) * self.temperature + compensation
+            self.entropy_reward = entropy(act_probabilities) * self.temperature
             return result
 
     def remember(self, state, action, reward, target):
@@ -238,7 +204,6 @@ class QLearningAgentBoltzmann(QLearningAgent):
 
         if self.temperature > self.temperature_min:
             self.temperature *= self.temperature_decay
-
 
 class QLearningAgentContinuous:
     def __init__(self, action_search_batch=64, n=100, learning_rate=0.0001, alpha=0.1, gamma=0.95, average_weight=0.5,
