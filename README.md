@@ -380,9 +380,10 @@ Since the problem here is relatively simple, a fully connected network with 3 La
 The input is a tensor containing a time series of past process variables, input signals as well as the current setpoint.  
 
 The reward is defined as the negative absolute error:
-$$
+
+```math
 reward(t) = - | error(t) |
-$$
+```
 
 #### Results
 
